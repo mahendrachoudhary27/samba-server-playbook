@@ -1,0 +1,66 @@
+---
+ - name: creating playbook to configure samba server
+   hosts: localhost
+   tasks:
+     - name: doing task to install some samba-server packages
+       yum:
+         name:
+           - samba
+           - samba-common
+
+
+     - name: adding a group on server side
+       group:
+         name: collection
+         state: present
+
+
+     - name: adding a user on server side
+       user:
+         name: server
+         group: collection
+         state: present
+
+
+     - name: now create a directory on server side that we want so share
+       file:
+         path: /share
+         state: directory
+         group: collection
+         mode: '2770'
+
+
+     - name: changing the setype of /share
+       sefcontext:
+         target: /share
+         setype: samba_share_t
+         state: present
+       become: yes
+
+     - name: now restore se type on /share
+       shell: restorecon -RvF /share
+
+
+     - name: now add some entries in /etc/samba/smb.conf
+       blockinfile:
+         path: /etc/samba/smb.conf
+         block: |
+           [share]
+                    path = /share
+                    browseable = Yes
+                    writable = Yes
+                    read only = Yes
+                    valid users = @collection
+
+
+
+     - name: setting the password of smbuser user using smbpasswd
+       shell: printf "1111\n1111\n" | smbpasswd -a server
+       become: yes
+
+
+     - name: start and enable smb service
+       service:
+         name: smb
+         state: started
+         enabled: yes
